@@ -710,7 +710,9 @@ static BOOL _isSKADEnabled = false;
 // Deep linking
 // Open URI-scheme for iOS 9 and above
 - (BOOL)application:(UIApplication *)application openURL:(NSURL *)url options:(NSDictionary *) options {
-    [[AppsFlyerAttribution shared] handleOpenUrl:url options:options];
+    if ([url.absoluteString hasPrefix:@"joinrewards.app"]) {
+        [[AppsFlyerAttribution shared] handleOpenUrl:url options:options];
+    }
     
     // Results of this are ORed and NO doesn't affect other delegate interceptors' result.
     return NO;
@@ -718,7 +720,10 @@ static BOOL _isSKADEnabled = false;
 }
 // Open URI-scheme for iOS 8 and below
 - (BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString*)sourceApplication annotation:(id)annotation {
-    [[AppsFlyerAttribution shared] handleOpenUrl:url sourceApplication:sourceApplication annotation:annotation];
+    if ([url.absoluteString hasPrefix:@"joinrewards.app"]) {
+        [[AppsFlyerAttribution shared] handleOpenUrl:url sourceApplication:sourceApplication annotation:annotation];
+    }
+        
     
     // Results of this are ORed and NO doesn't affect other delegate interceptors' result.
     return NO;
@@ -726,7 +731,12 @@ static BOOL _isSKADEnabled = false;
 }
 // Open Universal Links
 - (BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray * _Nullable))restorationHandler {
-    [[AppsFlyerAttribution shared] continueUserActivity:userActivity restorationHandler:restorationHandler];
+    if ([userActivity.activityType isEqualToString:NSUserActivityTypeBrowsingWeb]) {
+        NSURL *webURL = userActivity.webpageURL;
+        if ([webURL.absoluteString containsString:@"joinrewards.app"]) {
+            [[AppsFlyerAttribution shared] continueUserActivity:userActivity restorationHandler:restorationHandler];
+        }
+    }
     
     // Results of this are ORed and NO doesn't affect other delegate interceptors' result.
     return NO;

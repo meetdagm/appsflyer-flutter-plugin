@@ -4,6 +4,7 @@ class AppsflyerSdk {
   EventChannel _eventChannel;
   static AppsflyerSdk? _instance;
   final MethodChannel _methodChannel;
+  bool _isSdkStarted = false;
 
   AppsFlyerOptions? afOptions;
   Map? mapOptions;
@@ -13,10 +14,10 @@ class AppsflyerSdk {
   factory AppsflyerSdk(options) {
     if (_instance == null) {
       MethodChannel methodChannel =
-      const MethodChannel(AppsflyerConstants.AF_METHOD_CHANNEL);
+          const MethodChannel(AppsflyerConstants.AF_METHOD_CHANNEL);
 
       EventChannel eventChannel =
-      EventChannel(AppsflyerConstants.AF_EVENTS_CHANNEL);
+          EventChannel(AppsflyerConstants.AF_EVENTS_CHANNEL);
 
       //check if the option variable is AFOptions type or map type
       assert(options is AppsFlyerOptions || options is Map);
@@ -40,7 +41,9 @@ class AppsflyerSdk {
     Map<String, dynamic> validatedOptions = {};
 
     bool? manualStart = options.manualStart;
-    validatedOptions[AppsflyerConstants.AF_MANUAL_START] = manualStart;
+    if (manualStart != null) {
+      validatedOptions[AppsflyerConstants.AF_MANUAL_START] = manualStart;
+    }
 
     //validations
     dynamic devKey = options.afDevKey;
@@ -66,7 +69,7 @@ class AppsflyerSdk {
           options.disableAdvertisingIdentifier;
     } else {
       validatedOptions[AppsflyerConstants.DISABLE_ADVERTISING_IDENTIFIER] =
-      false;
+          false;
     }
 
     if (Platform.isIOS) {
@@ -76,7 +79,7 @@ class AppsflyerSdk {
         assert(timeToWaitForATTUserAuthorization is double);
 
         validatedOptions[
-        AppsflyerConstants.AF_TIME_TO_WAIT_FOR_ATT_USER_AUTHORIZATION] =
+                AppsflyerConstants.AF_TIME_TO_WAIT_FOR_ATT_USER_AUTHORIZATION] =
             timeToWaitForATTUserAuthorization;
       }
       dynamic appID = options.appId;
@@ -88,8 +91,8 @@ class AppsflyerSdk {
     }
 
     validatedOptions[AppsflyerConstants.AF_IS_DEBUG] =
-    // ignore: unnecessary_null_comparison
-    (options.showDebug != null) ? options.showDebug : false;
+        // ignore: unnecessary_null_comparison
+        (options.showDebug != null) ? options.showDebug : false;
 
     return validatedOptions;
   }
@@ -109,30 +112,36 @@ class AppsflyerSdk {
       assert(appInviteOneLink is String);
     }
 
+    if (options[AppsflyerConstants.AF_MANUAL_START] != null) {
+      afOptions[AppsflyerConstants.AF_MANUAL_START] = options[AppsflyerConstants.AF_MANUAL_START];
+    }else{
+      afOptions[AppsflyerConstants.AF_MANUAL_START] = false;
+    }
+
     afOptions[AppsflyerConstants.APP_INVITE_ONE_LINK] = appInviteOneLink;
 
     if (options[AppsflyerConstants.DISABLE_COLLECT_ASA] != null) {
       afOptions[AppsflyerConstants.DISABLE_COLLECT_ASA] =
-      options[AppsflyerConstants.DISABLE_COLLECT_ASA];
+          options[AppsflyerConstants.DISABLE_COLLECT_ASA];
     }
 
     if (options[AppsflyerConstants.DISABLE_ADVERTISING_IDENTIFIER] != null) {
       afOptions[AppsflyerConstants.DISABLE_ADVERTISING_IDENTIFIER] =
-      options[AppsflyerConstants.DISABLE_ADVERTISING_IDENTIFIER];
+          options[AppsflyerConstants.DISABLE_ADVERTISING_IDENTIFIER];
     } else {
       afOptions[AppsflyerConstants.DISABLE_ADVERTISING_IDENTIFIER] = false;
     }
 
     if (Platform.isIOS) {
       if (options[
-      AppsflyerConstants.AF_TIME_TO_WAIT_FOR_ATT_USER_AUTHORIZATION] !=
+              AppsflyerConstants.AF_TIME_TO_WAIT_FOR_ATT_USER_AUTHORIZATION] !=
           null) {
         dynamic timeToWaitForATTUserAuthorization = options[
-        AppsflyerConstants.AF_TIME_TO_WAIT_FOR_ATT_USER_AUTHORIZATION];
+            AppsflyerConstants.AF_TIME_TO_WAIT_FOR_ATT_USER_AUTHORIZATION];
         assert(timeToWaitForATTUserAuthorization is double);
 
         afOptions[
-        AppsflyerConstants.AF_TIME_TO_WAIT_FOR_ATT_USER_AUTHORIZATION] =
+                AppsflyerConstants.AF_TIME_TO_WAIT_FOR_ATT_USER_AUTHORIZATION] =
             timeToWaitForATTUserAuthorization;
       }
 
@@ -145,9 +154,9 @@ class AppsflyerSdk {
     }
 
     afOptions[AppsflyerConstants.AF_IS_DEBUG] =
-    options.containsKey(AppsflyerConstants.AF_IS_DEBUG)
-        ? options[AppsflyerConstants.AF_IS_DEBUG]
-        : false;
+        options.containsKey(AppsflyerConstants.AF_IS_DEBUG)
+            ? options[AppsflyerConstants.AF_IS_DEBUG]
+            : false;
 
     return afOptions;
   }
@@ -155,8 +164,8 @@ class AppsflyerSdk {
   ///initialize the SDK, using the options initialized from the constructor|
   Future<dynamic> initSdk(
       {bool registerConversionDataCallback = false,
-        bool registerOnAppOpenAttributionCallback = false,
-        bool registerOnDeepLinkingCallback = false}) async {
+      bool registerOnAppOpenAttributionCallback = false,
+      bool registerOnDeepLinkingCallback = false}) async {
     return Future.delayed(Duration(seconds: 0)).then((_) {
       Map<String, dynamic>? validatedOptions;
       if (mapOptions != null) {
@@ -170,13 +179,48 @@ class AppsflyerSdk {
               registerOnAppOpenAttributionCallback;
       validatedOptions?[AppsflyerConstants.AF_UDL] =
           registerOnDeepLinkingCallback;
-
+      //Means that we automatically starting the SDK
+      if (validatedOptions?[AppsflyerConstants.AF_MANUAL_START] == false) {
+        _isSdkStarted = true;
+      }
       return _methodChannel.invokeMethod("initSdk", validatedOptions);
     });
   }
 
-  void startSDK(){
-     _methodChannel.invokeMethod("startSDK");
+  /// Initializes the SDK and sets up a method call handler to listen for native callbacks.
+  /// Guards against multiple initializations with `_isSdkStarted`
+  void startSDK({
+    RequestSuccessListener? onSuccess,
+    RequestErrorListener? onError,
+  }) {
+    if (_isSdkStarted) {
+      return;
+    }
+    _isSdkStarted = true;
+    if (onSuccess != null || onError != null) {
+      _methodChannel.setMethodCallHandler((call) async {
+        switch (call.method) {
+          case 'onSuccess':
+            onSuccess?.call();
+            _methodChannel.setMethodCallHandler(null);
+            break;
+          case 'onError':
+            final int errorCode = call.arguments['errorCode'];
+            final String errorMessage = call.arguments['errorMessage'];
+            onError?.call(errorCode, errorMessage);
+            _methodChannel.setMethodCallHandler(null);
+            break;
+          default:
+            print('Unknown method called from the native side.');
+            _isSdkStarted = false;
+            _methodChannel.setMethodCallHandler(null);
+            break;
+        }
+      });
+      _methodChannel.invokeMethod('startSDKwithHandler');
+    } else {
+      _methodChannel.invokeMethod('startSDK');
+    }
   }
 
   /// Retrieves the current SDK version.
@@ -254,12 +298,25 @@ class AppsflyerSdk {
   }
 
   /// Setting whether the SDK should collect tcf data automatically from SharedPreferences/UserDefaults
-  void enableTCFDataCollection(bool shouldCollect){
-    _methodChannel.invokeListMethod("enableTCFDataCollection", {'shouldCollect': shouldCollect});
+  void enableTCFDataCollection(bool shouldCollect) {
+    _methodChannel.invokeListMethod(
+        "enableTCFDataCollection", {'shouldCollect': shouldCollect});
   }
 
   void setConsentData(AppsFlyerConsent consentData) {
-    _methodChannel.invokeMethod('setConsentData', <String, dynamic>{'consentData': consentData.toMap()});
+    _methodChannel.invokeMethod('setConsentData',
+        <String, dynamic>{'consentData': consentData.toMap()});
+  }
+
+  /// Opt-out logging for specific user
+  void anonymizeUser(bool shouldAnonymize) {
+    _methodChannel
+        .invokeMethod("anonymizeUser", {'shouldAnonymize': shouldAnonymize});
+  }
+
+  /// Opt-out logging for specific user
+  void performOnDeepLinking() {
+    _methodChannel.invokeMethod("performOnDeepLinking");
   }
 
   /// Setting your own customer ID enables you to cross-reference your own unique ID with AppsFlyer’s unique ID and the other devices’ IDs.
@@ -317,7 +374,8 @@ class AppsflyerSdk {
 
   ///Adds array of keys, which are used to compose key path to resolve deeplink from push notification payload.
   void addPushNotificationDeepLinkPath(List<String> deeplinkPath) {
-    _methodChannel.invokeMethod("addPushNotificationDeepLinkPath", deeplinkPath);
+    _methodChannel.invokeMethod(
+        "addPushNotificationDeepLinkPath", deeplinkPath);
   }
 
   /// Validate and log the In-App Purchase for Android on AppsFlyer's dashboard.
@@ -368,10 +426,10 @@ class AppsflyerSdk {
 
   /// Generates an invite link using the specified parameters, aka User Invite feature
   void generateInviteLink(
-      AppsFlyerInviteLinkParams? parameters,
-      Function success,
-      Function error,
-      ) {
+    AppsFlyerInviteLinkParams? parameters,
+    Function success,
+    Function error,
+  ) {
     Map<String, Object?>? paramsMap;
     if (parameters != null) {
       paramsMap = _translateInviteLinkParamsToMap(parameters);

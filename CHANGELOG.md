@@ -1,4 +1,17 @@
 # Versions
+## 6.14.3
+- Fixed mapOptions issue with manualStart
+- Inherit Privacy Manifest from the native iOS SDK via Cocoapods
+- Bump iOS version to 6.14.3
+## 6.14.2
+- Bump version to iOS v6.14.2 and Android v6.14.0
+- Added Privacy Manifest to support Apple latest changes: https://developer.apple.com/documentation/bundleresources/privacy_manifest_files 
+## 6.13.2+1
+- Hotfix for manualStart on iOS
+## 6.13.2
+- Added new APIs such as `anonymizeUser` , `performOnDeepLinking`
+- Added to the `startSDK` API, `onSuccess` and `onError` callbacks
+- Update to iOS SDK to v6.13.2
 ## 6.13.0+2
 - Update to iOS SDK to v6.13.1
 ## 6.13.0+1
